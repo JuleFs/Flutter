@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../models/appointment.dart';
+import '../services/appointments_service.dart';
 import 'book_appointment_screen.dart';
 
 class AppointmentsScreen extends StatefulWidget {
@@ -14,49 +15,15 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  // Mock data - Replace with actual data from backend
-  final List<Appointment> _upcomingAppointments = [
-    Appointment(
-      id: '1',
-      petName: 'Max',
-      date: DateTime.now().add(const Duration(days: 2)),
-      reason: 'Vacunación anual',
-      status: 'Confirmada',
-      veterinarian: 'Dr. García',
-    ),
-    Appointment(
-      id: '2',
-      petName: 'Luna',
-      date: DateTime.now().add(const Duration(days: 7)),
-      reason: 'Revisión general',
-      status: 'Pendiente',
-      veterinarian: 'Dra. Martínez',
-    ),
-  ];
-
-  final List<Appointment> _pastAppointments = [
-    Appointment(
-      id: '3',
-      petName: 'Max',
-      date: DateTime.now().subtract(const Duration(days: 30)),
-      reason: 'Desparasitación',
-      status: 'Completada',
-      veterinarian: 'Dr. García',
-    ),
-    Appointment(
-      id: '4',
-      petName: 'Rocky',
-      date: DateTime.now().subtract(const Duration(days: 45)),
-      reason: 'Control de peso',
-      status: 'Completada',
-      veterinarian: 'Dra. López',
-    ),
-  ];
+  List<Appointment> _allAppointments = [];
+  bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadAppointments();
   }
 
   @override
@@ -65,11 +32,55 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
     super.dispose();
   }
 
+  Future<void> _loadAppointments() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final result = await AppointmentsService.getMyAppointments();
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        if (result['success']) {
+          _allAppointments = result['appointments'] ?? [];
+        } else {
+          _errorMessage = result['message'];
+        }
+      });
+    }
+  }
+
+  List<Appointment> get _upcomingAppointments {
+    final now = DateTime.now();
+    return _allAppointments
+        .where((apt) =>
+            apt.date.isAfter(now) &&
+            (apt.status == 'Pendiente' || apt.status == 'Confirmada'))
+        .toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
+  }
+
+  List<Appointment> get _pastAppointments {
+    final now = DateTime.now();
+    return _allAppointments
+        .where((apt) => apt.date.isBefore(now) || apt.status == 'Completada')
+        .toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mis Citas'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadAppointments,
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: AppTheme.primaryColor,
@@ -81,21 +92,57 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildUpcomingList(),
-          _buildPastList(),
-        ],
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _errorMessage != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        size: 60,
+                        color: AppTheme.errorColor,
+                      ),
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32),
+                        child: Text(
+                          _errorMessage!,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: AppTheme.textSecondary,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton.icon(
+                        onPressed: _loadAppointments,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Reintentar'),
+                      ),
+                    ],
+                  ),
+                )
+              : TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildUpcomingList(),
+                    _buildPastList(),
+                  ],
+                ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
+        onPressed: () async {
+          final result = await Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => const BookAppointmentScreen(),
             ),
           );
+          if (result == true) {
+            _loadAppointments();
+          }
         },
         backgroundColor: AppTheme.primaryColor,
         icon: const Icon(Icons.add, color: Colors.white),
@@ -187,7 +234,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.7,
+        height: MediaQuery.of(context).size.height * 0.9,
         decoration: const BoxDecoration(
           color: AppTheme.surfaceColor,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -207,9 +254,9 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
               ),
             ),
             const SizedBox(height: 24),
-            Text(
-              'Detalles de la Cita',
-              style: const TextStyle(
+            const Text(
+              'Detalles de la cita',
+              style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
                 color: AppTheme.textPrimary,
@@ -302,15 +349,32 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
             child: const Text('No'),
           ),
           ElevatedButton(
-            onPressed: () {
-              // TODO: Implement cancel logic
+            onPressed: () async {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Cita cancelada exitosamente'),
-                  backgroundColor: AppTheme.errorColor,
-                ),
+              
+              final result = await AppointmentsService.updateAppointmentStatus(
+                appointmentId: appointment.id,
+                estado: 'Cancelada',
               );
+
+              if (mounted) {
+                if (result['success']) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Cita cancelada exitosamente'),
+                      backgroundColor: AppTheme.successColor,
+                    ),
+                  );
+                  _loadAppointments();
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(result['message'] ?? 'Error al cancelar cita'),
+                      backgroundColor: AppTheme.errorColor,
+                    ),
+                  );
+                }
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.errorColor,

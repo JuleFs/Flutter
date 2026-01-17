@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../models/pet.dart';
 import '../models/appointment.dart';
-// Import pet detail screen
+import '../services/pets_service.dart';
+import '../services/appointments_service.dart';
+import '../services/storage_service.dart';
 import 'pet_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -15,35 +17,62 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
-  // Mock data - Replace with actual data from backend
-  final List<Pet> _recentPets = [
-    Pet(
-      id: '1',
-      name: 'Max',
-      species: 'Perro',
-      breed: 'Golden Retriever',
-      age: 3,
-      imageUrl: '/placeholder.svg?height=100&width=100',
-    ),
-    Pet(
-      id: '2',
-      name: 'Luna',
-      species: 'Gato',
-      breed: 'Siamés',
-      age: 2,
-      imageUrl: '/placeholder.svg?height=100&width=100',
-    ),
-  ];
+  List<Pet> _recentPets = [];
+  List<Appointment> _upcomingAppointments = [];
+  bool _isLoading = true;
 
-  final List<Appointment> _upcomingAppointments = [
-    Appointment(
-      id: '1',
-      petName: 'Max',
-      date: DateTime.now().add(const Duration(days: 2)),
-      reason: 'Vacunación anual',
-      status: 'Confirmada',
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final petsResult = await PetsService.getMyPets();
+      if (petsResult['success'] == true && petsResult['pets'] != null) {
+        final List<Pet> petsData = petsResult['pets'];
+        setState(() {
+          _recentPets = petsData.take(3).toList();
+        });
+      }
+
+      final appointmentsResult = await AppointmentsService.getMyAppointments();
+      if (appointmentsResult['success'] == true &&
+          appointmentsResult['appointments'] != null) {
+        final List<Appointment> appointmentsData =
+            appointmentsResult['appointments'];
+        final now = DateTime.now();
+
+        setState(() {
+          _upcomingAppointments = appointmentsData
+              .where((appt) => appt.date.isAfter(now))
+              .take(3)
+              .toList();
+
+          _upcomingAppointments.sort((a, b) => a.date.compareTo(b.date));
+        });
+      }
+    } catch (e) {
+      debugPrint('[v0] Error loading home data: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error al cargar los datos'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   void _onNavItemTapped(int index) {
     setState(() {
@@ -77,161 +106,131 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Welcome section
-            const Text(
-              '¡Hola, María!',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Cuida a tus mascotas hoy',
-              style: TextStyle(
-                fontSize: 16,
-                color: AppTheme.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 24),
-            
-            // Quick actions
-            Row(
-              children: [
-                Expanded(
-                  child: _QuickActionCard(
-                    icon: Icons.calendar_today,
-                    title: 'Agendar Cita',
-                    color: AppTheme.primaryColor,
-                    onTap: () {
-                      Navigator.pushNamed(context, '/appointments');
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _QuickActionCard(
-                    icon: Icons.pets,
-                    title: 'Mis Mascotas',
-                    color: AppTheme.secondaryColor,
-                    onTap: () {
-                      Navigator.pushNamed(context, '/pets');
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // Upcoming appointments
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Próximas Citas',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/appointments');
-                  },
-                  child: const Text('Ver todas'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (_upcomingAppointments.isEmpty)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Center(
-                    child: Column(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _loadData,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Icon(
-                          Icons.event_available,
-                          size: 48,
-                          color: Colors.grey.shade400,
+                        Expanded(
+                          child: _QuickActionCard(
+                            icon: Icons.calendar_today,
+                            title: 'Agendar Cita',
+                            color: AppTheme.primaryColor,
+                            onTap: () {
+                              Navigator.pushNamed(context, '/appointments');
+                            },
+                          ),
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'No tienes citas programadas',
-                          style: TextStyle(
-                            color: AppTheme.textSecondary,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _QuickActionCard(
+                            icon: Icons.pets,
+                            title: 'Agregar mascota',
+                            color: AppTheme.secondaryColor,
+                            onTap: () {
+                              Navigator.pushNamed(context, '/pets');
+                            },
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ),
-              )
-            else
-              ..._upcomingAppointments.map((appointment) {
-                return _AppointmentCard(appointment: appointment);
-              }),
-            const SizedBox(height: 24),
-
-            // Recent pets
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Tus Mascotas',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/pets');
-                  },
-                  child: const Text('Ver todas'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (_recentPets.isEmpty)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Center(
-                    child: Column(
+                    const SizedBox(height: 24),
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Icon(
-                          Icons.pets,
-                          size: 48,
-                          color: Colors.grey.shade400,
-                        ),
-                        const SizedBox(height: 8),
                         Text(
-                          'Aún no has registrado mascotas',
+                          'Próximas citas',
                           style: TextStyle(
-                            color: AppTheme.textSecondary,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.textPrimary,
                           ),
                         ),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 12),
+                    if (_upcomingAppointments.isEmpty)
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(20.0),
+                          child: Center(
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.event_available,
+                                  size: 48,
+                                  color: Colors.grey.shade400,
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'No tienes citas programadas',
+                                  style: TextStyle(
+                                    color: AppTheme.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      ..._upcomingAppointments.map((appointment) {
+                        return _AppointmentCard(appointment: appointment);
+                      }),
+                    const SizedBox(height: 24),
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Mascotas agregadas recientemente',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (_recentPets.isEmpty)
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(20.0),
+                          child: Center(
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.pets,
+                                  size: 48,
+                                  color: Colors.grey.shade400,
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Aún no has registrado mascotas',
+                                  style: TextStyle(
+                                    color: AppTheme.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      ..._recentPets.map((pet) {
+                        return _PetCard(pet: pet);
+                      }),
+                  ],
                 ),
-              )
-            else
-              ..._recentPets.map((pet) {
-                return _PetCard(pet: pet);
-              }),
-          ],
-        ),
-      ),
+              ),
+            ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: _onNavItemTapped,
@@ -454,7 +453,7 @@ class _PetCard extends StatelessWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Image.network(
-                  pet.imageUrl,
+                  pet.imageUrl ?? 'https://via.placeholder.com/60',
                   width: 60,
                   height: 60,
                   fit: BoxFit.cover,
@@ -509,5 +508,3 @@ class _PetCard extends StatelessWidget {
     );
   }
 }
-
-

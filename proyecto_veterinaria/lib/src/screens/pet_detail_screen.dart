@@ -33,7 +33,7 @@ class PetDetailScreen extends StatelessWidget {
                 color: AppTheme.secondaryColor.withOpacity(0.1),
               ),
               child: Image.network(
-                pet.imageUrl,
+                pet.imageUrl ?? 'https://via.placeholder.com/300?text=Mascota',
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) {
                   return const Icon(

@@ -1,163 +1,197 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../services/storage_service.dart';
+import '../services/auth_service.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // Mock user data
-    const String userName = 'María González';
-    const String userEmail = 'maria.gonzalez@email.com';
-    const String userPhone = '+52 123 456 7890';
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
 
+class _ProfileScreenState extends State<ProfileScreen> {
+  String _userName = 'Usuario';
+  String _userEmail = '';
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final email = await StorageService.getUserEmail();
+    final userId = await StorageService.getUserId();
+
+    if (mounted) {
+      setState(() {
+        _userEmail = email ?? 'correo@ejemplo.com';
+        _userName = 'Usuario';
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mi Perfil'),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            // Profile picture
-            Center(
-              child: Stack(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
                 children: [
-                  Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryColor.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.person,
-                      size: 50,
-                      color: AppTheme.primaryColor,
+                  // Profile picture
+                  Center(
+                    child: Stack(
+                      children: [
+                        Container(
+                          width: 100,
+                          height: 100,
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryColor.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.person,
+                            size: 50,
+                            color: AppTheme.primaryColor,
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: const BoxDecoration(
+                              color: AppTheme.primaryColor,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.camera_alt,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: const BoxDecoration(
-                        color: AppTheme.primaryColor,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.camera_alt,
-                        size: 16,
-                        color: Colors.white,
-                      ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _userName,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _userEmail,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Profile options
+                  _ProfileOption(
+                    icon: Icons.person_outline,
+                    title: 'Información Personal',
+                    subtitle: 'Actualiza tus datos',
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Próximamente disponible'),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  _ProfileOption(
+                    icon: Icons.email_outlined,
+                    title: 'Correo Electrónico',
+                    subtitle: _userEmail,
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Próximamente disponible'),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  _ProfileOption(
+                    icon: Icons.lock_outline,
+                    title: 'Cambiar Contraseña',
+                    subtitle: 'Actualiza tu contraseña',
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Próximamente disponible'),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  _ProfileOption(
+                    icon: Icons.notifications_outlined,
+                    title: 'Notificaciones',
+                    subtitle: 'Administra tus notificaciones',
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Próximamente disponible'),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  _ProfileOption(
+                    icon: Icons.help_outline,
+                    title: 'Ayuda y Soporte',
+                    subtitle: 'Obtén ayuda',
+                    onTap: () {
+                      _showHelpDialog(context);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  _ProfileOption(
+                    icon: Icons.info_outline,
+                    title: 'Acerca de',
+                    subtitle: 'Versión 1.0.0',
+                    onTap: () {
+                      _showAboutDialog(context);
+                    },
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Logout button
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      _showLogoutDialog(context);
+                    },
+                    icon: const Icon(Icons.logout, color: AppTheme.errorColor),
+                    label: const Text(
+                      'Cerrar Sesión',
+                      style: TextStyle(color: AppTheme.errorColor),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppTheme.errorColor),
+                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
-            const Text(
-              userName,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              userEmail,
-              style: TextStyle(
-                fontSize: 14,
-                color: AppTheme.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 32),
-
-            // Profile options
-            _ProfileOption(
-              icon: Icons.person_outline,
-              title: 'Información Personal',
-              subtitle: 'Actualiza tus datos',
-              onTap: () {
-                // TODO: Navigate to edit profile
-              },
-            ),
-            const SizedBox(height: 12),
-            _ProfileOption(
-              icon: Icons.phone_outlined,
-              title: 'Teléfono',
-              subtitle: userPhone,
-              onTap: () {
-                // TODO: Navigate to edit phone
-              },
-            ),
-            const SizedBox(height: 12),
-            _ProfileOption(
-              icon: Icons.email_outlined,
-              title: 'Correo Electrónico',
-              subtitle: userEmail,
-              onTap: () {
-                // TODO: Navigate to edit email
-              },
-            ),
-            const SizedBox(height: 12),
-            _ProfileOption(
-              icon: Icons.lock_outline,
-              title: 'Cambiar Contraseña',
-              subtitle: 'Actualiza tu contraseña',
-              onTap: () {
-                // TODO: Navigate to change password
-              },
-            ),
-            const SizedBox(height: 12),
-            _ProfileOption(
-              icon: Icons.notifications_outlined,
-              title: 'Notificaciones',
-              subtitle: 'Administra tus notificaciones',
-              onTap: () {
-                // TODO: Navigate to notifications settings
-              },
-            ),
-            const SizedBox(height: 12),
-            _ProfileOption(
-              icon: Icons.help_outline,
-              title: 'Ayuda y Soporte',
-              subtitle: 'Obtén ayuda',
-              onTap: () {
-                // TODO: Navigate to help
-              },
-            ),
-            const SizedBox(height: 12),
-            _ProfileOption(
-              icon: Icons.info_outline,
-              title: 'Acerca de',
-              subtitle: 'Versión 1.0.0',
-              onTap: () {
-                // TODO: Show about dialog
-              },
-            ),
-            const SizedBox(height: 32),
-
-            // Logout button
-            OutlinedButton.icon(
-              onPressed: () {
-                _showLogoutDialog(context);
-              },
-              icon: const Icon(Icons.logout, color: AppTheme.errorColor),
-              label: const Text(
-                'Cerrar Sesión',
-                style: TextStyle(color: AppTheme.errorColor),
-              ),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppTheme.errorColor),
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -173,14 +207,115 @@ class ProfileScreen extends StatelessWidget {
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pushReplacementNamed(context, '/login');
+            onPressed: () async {
+              await AuthService.logout();
+              if (!context.mounted) return;
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/login',
+                (route) => false,
+              );
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.errorColor,
             ),
             child: const Text('Cerrar Sesión'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAboutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Acerca de VetCare'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'VetCare',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text('Versión: 1.0.0'),
+            SizedBox(height: 16),
+            Text(
+              'Aplicación móvil para la gestión de citas veterinarias y cuidado de mascotas.',
+              style: TextStyle(fontSize: 14),
+            ),
+            SizedBox(height: 16),
+            Text(
+              '© 2026 VetCare. Todos los derechos reservados.',
+              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showHelpDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ayuda y Soporte'),
+        content: const SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '¿Necesitas ayuda?',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(height: 16),
+              Text('Contacta con nosotros:'),
+              SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.email, size: 20, color: AppTheme.primaryColor),
+                  SizedBox(width: 8),
+                  Text('soporte@vetcare.com'),
+                ],
+              ),
+              SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.phone, size: 20, color: AppTheme.primaryColor),
+                  SizedBox(width: 8),
+                  Text('+52 123 456 7890'),
+                ],
+              ),
+              SizedBox(height: 16),
+              Text(
+                'Horario de atención:',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              SizedBox(height: 4),
+              Text('Lunes a Viernes: 9:00 AM - 6:00 PM'),
+              Text('Sábados: 9:00 AM - 2:00 PM'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
           ),
         ],
       ),

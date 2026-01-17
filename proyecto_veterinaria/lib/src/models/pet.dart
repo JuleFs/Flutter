@@ -1,10 +1,10 @@
 class Pet {
-  final String id;
+  final int id;
   final String name;
   final String species;
   final String breed;
   final int age;
-  final String imageUrl;
+  final String? imageUrl;
   final String? gender;
   final double? weight;
   final String? color;
@@ -16,7 +16,7 @@ class Pet {
     required this.species,
     required this.breed,
     required this.age,
-    required this.imageUrl,
+    this.imageUrl,
     this.gender,
     this.weight,
     this.color,
@@ -25,33 +25,35 @@ class Pet {
 
   factory Pet.fromJson(Map<String, dynamic> json) {
     return Pet(
-      id: json['id'],
-      name: json['name'],
-      species: json['species'],
-      breed: json['breed'],
-      age: json['age'],
-      imageUrl: json['imageUrl'] ?? '',
-      gender: json['gender'],
-      weight: json['weight']?.toDouble(),
+      id: json['id'] ?? json['mascota_id'] ?? 0,
+      name: json['nombre'] ?? json['name'] ?? '',
+      species: json['especie'] ?? json['species'] ?? '',
+      breed: json['raza'] ?? json['breed'] ?? '',
+      age: json['edad'] ?? json['age'] ?? 0,
+      imageUrl: json['imagen_url'] ?? json['imageUrl'] ?? '/placeholder.svg?height=100&width=100',
+      gender: json['genero'] ?? json['gender'],
+      weight: json['peso']?.toDouble() ?? json['weight']?.toDouble(),
       color: json['color'],
-      birthDate: json['birthDate'] != null
-          ? DateTime.parse(json['birthDate'])
-          : null,
+      birthDate: json['fecha_nacimiento'] != null
+          ? DateTime.parse(json['fecha_nacimiento'])
+          : json['birthDate'] != null
+              ? DateTime.parse(json['birthDate'])
+              : null,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'name': name,
-      'species': species,
-      'breed': breed,
-      'age': age,
-      'imageUrl': imageUrl,
-      'gender': gender,
-      'weight': weight,
+      'nombre': name,
+      'especie': species,
+      'raza': breed,
+      'edad': age,
+      'imagen_url': imageUrl,
+      'genero': gender,
+      'peso': weight,
       'color': color,
-      'birthDate': birthDate?.toIso8601String(),
+      'fecha_nacimiento': birthDate?.toIso8601String(),
     };
   }
 }
